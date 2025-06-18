@@ -1,0 +1,69 @@
+#!/bin/bash
+
+#List of pokemon to collect
+POKEMONS=(
+    "Bulbasaur"
+    "Ivysaur"
+    "Venusaur"
+    "Charmander"
+    "Charmeleon"
+)
+
+#The fiexd part of the URL for all API requests
+BASE_API_URL="https://pokeapi.co/api/v2/pokemon/"
+
+#Directory to save JSON files
+OUTPUT_DIR="pokemon_data"
+
+#File where global errors will be logged
+GLOBAL_ERROR_LOG="errors.log"
+
+#Delay between requests in seconds
+DELAY_SECONDS=1
+
+#Create the output directory if it does not exist
+mkdir -p "${OUTPUT_DIR}"
+
+echo "Starting Pokémon data retrieval..."
+echo "All JSON files will be saved in: ${OUTPUT_DIR}/"
+echo "Errors will be logged in: ${GLOBAL_ERROR_LOG}"
+echo "----------------------------------------"
+
+# Loop through each Pokémon in the list
+for POKEMON_NAME in "${POKEMONS[@]}"; do
+   API_URL="${BASE_API_URL}${POKEMON_NAME,,}/"
+
+   OUTPUT_FILE="${OUTPUT_DIR}/${POKEMON_NAME,,}.json"
+
+   TEMP_ERROR_FILE="${OUTPUT_DIR}/curl_error_temp.log"
+
+   echo "Fetching data for ${POKEMON_NAME}..."
+
+   HTTP_CODE=$(curl -sS -L -w "%{http_code}" "$API_URL" -o "${OUTPUT_FILE}" 2>"${TEMP_ERROR_FILE}")
+
+   if [ $? -eq 0 ]; then
+      if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+           echo "Successfully retrieved data for ${POKEMON_NAME} and saved to ${OUTPUT_FILE}."
+
+           rm -f "${TEMP_ERROR_FILE}"
+      else 
+         echo "HTTP error ${HTTP_CODE} when retrieving data for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
+         echo "Check ${GLOBAL_ERROR_LOG} for details on this HTTP error."
+         
+         cat "${TEMP_ERROR_FILE}" >> "${GLOBAL_ERROR_LOG}"
+         rm -f "${TEMP_ERROR_FILE}"
+      fi
+  else
+      echo "$(date): Curl request failed for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
+      echo "Check ${GLOBAL_ERROR_LOG} for details on this curl failure."
+
+      cat "${TEMP_ERROR_FILES}" >> "${GLOBAL_ERROR_LOG}"
+      rm -f "${TEMP_ERROR_FILE}"
+  fi
+
+  echo "Waiting ${DELAY_SECONDS} seconds before next request..."
+  sleep "${DELAY_SECONDS}"
+  echo "----------------------------------------"
+done
+
+echo "Finished retrieving data for all Pokémon."
