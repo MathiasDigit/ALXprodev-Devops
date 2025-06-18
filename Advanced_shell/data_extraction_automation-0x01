@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Check if the data.json file exists
+if [ ! -f data.json ]; then
+    echo "Error: data.json not found. Please run the previous script first."
+    exit 1
+fi
+
+# Extract data from JSON file using jq and format it into a single comma-separated line.
+POKEMON_DATA=$(jq -r '"\(.name),\(.types[0].type.name),\(.weight / 10),\(.height / 10)"' data.json)
+
+#Check if extraction with jq was successful
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to extract data from data.json using jq. Cehck JSON file integrity."
+    exit 1
+fi
+
+#Use awk to parse comma-separated string and format the final output
+echo "$POKEMON_DATA" | awk -F',' '{
+    name = toupper(substr($1, 1, 1)) substr($1, 2)
+    type = toupper(substr($2, 1, 1)) substr($2, 2)
+
+    printf "%s is of type %s, weighs %.0fkg, and is %.1fm tall.\n", name, type, $3, $4
+}'
