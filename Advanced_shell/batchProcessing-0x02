@@ -2,11 +2,11 @@
 
 #List of pokemon to collect
 POKEMONS=(
-    "Bulbasaur"
-    "Ivysaur"
-    "Venusaur"
-    "Charmander"
-    "Charmeleon"
+    "bulbasaur"
+    "ivysaur"
+    "venusaur"
+    "charmander"
+    "charmeleon"
 )
 
 #The fiexd part of the URL for all API requests
