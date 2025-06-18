@@ -16,13 +16,19 @@ if [ $? -ne 0 ]; then
 fi
 
 #Use awk to parse comma-separated string and format the final output
-FORMATTED_DATA=$(echo "$POKEMON_DATA" | awk -F',' '{
-    name = toupper(substr($1, 1, 1)) substr($1, 2)
-    type = toupper(substr($2, 1, 1)) substr($2, 2)
+FORMATTED_COMPONENTS_AWK=$(echo "$POKEMON_DATA" | awk -F',' '{
+    name_formatted = toupper(substr($1, 1, 1)) substr($1, 2)
+    type_formatted = toupper(substr($2, 1, 1)) substr($2, 2)
     formatted_weight = sprintf("%.0f", $3)
     formatted_height = sprintf("%.1f", $4)
 
-    printf "%s|%s|%s|%s\n", name, type, formatted_weight, formatted_height
+     print name_formatted, type_formatted, formatted_weight, formatted_height
 }')
 
-echo "$FORMATTED_DATA" | sed -r 's/^([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)$/\1 is of type \2, weighs \3kg, and is \4m tall./'
+FINAL_COMPONENTS_FOR_SHELL=$(echo "$FORMATTED_COMPONENTS_AWK" | sed -r 's/(.*)/\1/')
+
+read -r name type formatted_weight formatted_height <<< "$FINAL_COMPONENTS_FOR_SHELL"
+
+
+echo "$name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall."
+
