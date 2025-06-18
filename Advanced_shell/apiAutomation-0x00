@@ -1,0 +1,42 @@
+#!/bin/bash
+
+#Name of the pokemon to search
+POKEMON_NAME="pikachu"
+
+#pokemon Api URL for the specified pokemon
+API_URL="https://pokeapi.co/api/v2/pokemon/${POKEMON_NAME}/"
+
+#file where the json response will be saved
+OUTPUT_FILE="data.json"
+
+#file where the errors will be saved
+ERROR_LOG_FILE="errors.txt"
+
+echo "Attempting to retrieve data for ${POKEMON_NAME}..."
+
+HTTP_CODE=$(curl -sS -L -w "%{http_code}" "${API_URL}" -o "${OUTPUT_FILE}" 2>"${ERROR_LOG_FILE}.tmp")
+
+# Checks the exit status of the last command (curl).
+if [ $? -eq 0 ]; then
+   echo "Connection established"
+   if [ "${HTTP_CODE}" -ge 200 -a "$HTTP_CODE" -lt 300 ]; then
+      echo "Data successfully retrieved for ${POKEMON_NAME} and saved to ${OUTPUT_FILE}."
+      rm -f "${ERROR_LOG_FILE}.tmp"
+   else 
+       echo "HTTP error ${HTTP_CODE} When retrieving data for ${POKEMON_NAME}." | tee -a "${ERROR_LOG_FILE}"
+       echo "Check ${ERROR_LOG_FILE} for more details."
+        # Appends the content of the temporary error file to the main error log file.
+       cat "${ERROR_LOG_FILE}.tmp" >> "${ERROR_LOG_FILE}"
+       rm -f "${ERROR_LOG_FILE}.tmp"
+    fi
+
+else 
+# The curl request failed completely (e.g., network issue, URL not found).
+# Appends the current date and time to the error file.
+
+   echo "$(date): Curl request failed for ${POKEMON_NAME}." | tee -a "${ERROR_LOG_FILE}"
+   echo "Check ${ERROR_LOG_FILE} for more details."
+ # Appends the content of the temporary error file to the main error log file.
+   cat "${ERROR_LOG_FILE}.tmp" >> "${ERROR_LOG_FILE}"
+   rm -f "${ERROR_LOG_FILE}.tmp"
+fi
