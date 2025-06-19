@@ -1,0 +1,109 @@
+#!/bin/bash
+
+POKEMONS=(
+    "bulbasaur"
+    "ivysaur"
+    "venusaur"
+    "charmander"
+    "charmeleon"
+)
+
+#The fiexd part of the URL for all API requests
+BASE_API_URL="https://pokeapi.co/api/v2/pokemon/"
+
+#Directory to save JSON files
+OUTPUT_DIR="pokemon_data"
+
+#File where global errors will be logged
+GLOBAL_ERROR_LOG="errors.log"
+
+#Delay between requests in seconds
+GLOBAL_DELAY_SECONDS=1
+
+# --- Retry Mechanism Parameters ---
+# Maximum number of attempts for each failed request
+MAX_RETRIES=3
+# Delay between each retry attempt (in seconds)
+RETRY_DELAY_SECONDS=2
+
+#Create the output directory if it does not exist
+mkdir -p "${OUTPUT_DIR}"
+# Flush the global error log at the start of execution
+> "${GLOBAL_ERROR_LOG}"
+
+echo "Starting Pokémon data retrieval..."
+echo "All JSON files will be saved in: ${OUTPUT_DIR}/"
+echo "Errors will be logged in: ${GLOBAL_ERROR_LOG}"
+echo "Max retries per request: ${MAX_RETRIES} with ${RETRY_DELAY_SECONDS}s delay between retries"
+echo "Global delay between Pokemon: ${GLOBAL_DELAY_SECONDS}s."
+echo "----------------------------------------"
+
+# --- Single Pokémon Data Retries Function ---
+# This function will run in the background for each Pokémon.
+# It handles login attempts and writes its final status to the global log.
+
+fetch_pokemon_data() {
+    local pokemon_name=$1
+    local api_url="${BASE_API_URL}${pokemon_name,,}/"
+    local output_file="${OUTPUT_DIR}/${pokemon_name,,}.json"
+
+    local temp_error_file="${OUTPUT_DIR}/curl_error_${pokemon_name}_$$.log"
+
+    local attempt_num=0
+    local successful_request=false
+
+    echo "[PID $$] Fetching data for ${pokemon_name} (URL: ${api_url})..."
+
+    while [ "$attempt_num" -lt "$MAX_RETRIES" ]; do
+        attempt_num=$((attempt_num + 1))
+        echo "[PID $$] Attempt ${attempt_num}/${MAX_RETRIES} for ${pokemon_name}..."
+        
+        local http_code=$(curl -sS -L -w "%{http_code}" "${api_url}" -o "${output_file}" 2>"${temp_error_file}")
+        local curl_exit_code=$?
+        #Check if curl completed successfully AND returned an HTTP code.
+        if [ "$curl_exit_code" -eq 0 ] && [ -n "${http_code}" ]; then
+           if [ "${http_code}" -ge 200 ] && [ "${http_code}" -lt 300 ]; then
+              echo "[PID $$] SUCCESS: Retrieved data for ${pokemon_name}."
+              rm -f "${temp_error_file}"
+              successful_request=true
+              break
+            else
+               local error_msg="$(date '+%a, %b, %d, %Y %H:%M:%S %Z'): [PID $$] HTTP error ${http_code} for ${pokemon_name} (Attempt ${attempt_num}/${MAX_RETRIES})"
+               echo "${error_msg}" >> "${GLOBAL_ERROR_LOG}"
+               if [ -s "${temp_error_file}" ]; then 
+                  cat "${temp_error_file}" >> "${GLOBAL_ERROR_LOG}"
+               fi
+               rm -f "${temp_error_file}"
+            fi
+
+            if ! $successful_request && [ "$attempt_num" -lt "$MAX_RETRIES" ]; then
+              echo "[PID $$]   Waiting ${RETRY_DELAY_SECONDS} seconds before retrying ${pokemon_name}..."
+              sleep "${RETRY_DELAY_SECONDS}"
+            fi
+        fi
+    done
+
+    if ! $successful_request; then
+        echo "[PID $$] FAILED: Max retries (${MAX_RETRIES}) reached for ${pokemon_name}. Skipping this Pokémon."
+    fi
+}
+
+# --- Launching background processes ---
+
+PIDS=()
+
+for POKEMON_NAME in "${POKEMONS[@]}"; do
+    fetch_pokemon_data "${POKEMON_NAME}" &
+    PIDS+=($!)
+done
+
+echo "----------------------------------------"
+echo "All Pokémon fetch processes launched. Waiting for them to complete..."
+
+wait 
+
+echo "----------------------------------------"
+echo "All Pokémon fetch processes have completed."
+echo "Final report saved in ${OUTPUT_DIR}/"
+echo "Check ${GLOBAL_ERROR_LOG} for any errors encountered."
+echo "Script finished."
