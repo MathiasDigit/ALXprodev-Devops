@@ -33,11 +33,11 @@ find "${POKEMON_DATA_DIR}" -maxdepth 1 -type f -name "*.json" | while read -r js
    continue
    fi
 
-#use awk for format the name
+#use awk to format the name
    echo "$POKEMON_DATA" | awk -F',' '{
    name_formatted = toupper(substr($1, 1, 1)) substr($1, 2)
    printf "%s,%.1f,%.1f\n", name_formatted, $2, $3
-}' "${OUTPUT_CSV}"
+}' | sed -r 's/(.*)/\1/' >> "${OUTPUT_CSV}"
 
 done
 
@@ -65,12 +65,12 @@ END{
   if (count > 0) {
         avg_height = total_height / count
         avg_weight = total_weight / count
-        printf "Average Height: %.2fm\n", avg_height
+        printf "\n\nAverage Height: %.2fm\n", avg_height
         printf "Average weight: %.2fkg\n", avg_weight
  } else {
     print "No Pokémon data found in the report to calculate averages."
  }
-}' >> "${OUTPUT_CSV}"
+}' "${OUTPUT_CSV}" >> "${OUTPUT_CSV}"
 
 echo "----------------------------------------"
 echo "Script finished."
