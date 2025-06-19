@@ -19,7 +19,13 @@ OUTPUT_DIR="pokemon_data"
 GLOBAL_ERROR_LOG="errors.log"
 
 #Delay between requests in seconds
-DELAY_SECONDS=1
+GLOBAL_DELAY_SECONDS=1
+
+# --- Retry Mechanism Parameters ---
+# Maximum number of attempts for each failed request
+MAX_RETRIES=3
+# Delay between each retry attempt (in seconds)
+RETRY_DELAY_SECONDS=2
 
 #Create the output directory if it does not exist
 mkdir -p "${OUTPUT_DIR}"
@@ -27,6 +33,8 @@ mkdir -p "${OUTPUT_DIR}"
 echo "Starting Pokémon data retrieval..."
 echo "All JSON files will be saved in: ${OUTPUT_DIR}/"
 echo "Errors will be logged in: ${GLOBAL_ERROR_LOG}"
+echo "Max retries per request: ${MAX_RETRIES} with ${RETRY_DELAY_SECOND}s delay between retries"
+echo "Global delay between Pokemon: ${GLOBAL_DELAY_SECONDS}s."
 echo "----------------------------------------"
 
 # Loop through each Pokémon in the list
@@ -39,30 +47,49 @@ for POKEMON_NAME in "${POKEMONS[@]}"; do
 
    echo "Fetching data for ${POKEMON_NAME}..."
 
-   HTTP_CODE=$(curl -sS -L -w "%{http_code}" "$API_URL" -o "${OUTPUT_FILE}" 2>"${TEMP_ERROR_FILE}")
+#---Start of retry machanism---
+attempt_num=0
+successful_request=false
 
-   if [ $? -eq 0 ]; then
-      if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+   while [ "$attempt_num" -lt "$MAX_RETRIES" ]; do
+       attempt_num=$((attempt_num + 1))
+       echo " Attempt ${attempt_num}/${MAX_RETRIES} to fetch data..."
+
+      HTTP_CODE=$(curl -sS -L -w "%{http_code}" "$API_URL" -o "${OUTPUT_FILE}" 2>"${TEMP_ERROR_FILE}")
+
+      if [ $? -eq 0 ]; then
+        if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
            echo "Successfully retrieved data for ${POKEMON_NAME} and saved to ${OUTPUT_FILE}."
 
            rm -f "${TEMP_ERROR_FILE}"
-      else 
-         echo "HTTP error ${HTTP_CODE} when retrieving data for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
-         echo "Check ${GLOBAL_ERROR_LOG} for details on this HTTP error."
+        else 
+          echo "HTTP error ${HTTP_CODE} when retrieving data for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
+          echo "Check ${GLOBAL_ERROR_LOG} for details on this HTTP error."
          
-         cat "${TEMP_ERROR_FILE}" >> "${GLOBAL_ERROR_LOG}"
-         rm -f "${TEMP_ERROR_FILE}"
-      fi
+          cat "${TEMP_ERROR_FILE}" >> "${GLOBAL_ERROR_LOG}"
+          rm -f "${TEMP_ERROR_FILE}"
+        fi
+     else
+       echo "$(date): Curl request failed for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
+       echo "Check ${GLOBAL_ERROR_LOG} for details on this curl failure."
+
+       cat "${TEMP_ERROR_FILES}" >> "${GLOBAL_ERROR_LOG}"
+       rm -f "${TEMP_ERROR_FILE}"
+     fi
+  
+     if ! $successful_request && [ "$attempt_num" -lt "$MAX_RETRIES" ]; then
+      echo "Waiting ${RETRY_DELAYA_SECONDS} seconds before next retrying..."
+      sleep "${RETRY_DELAY_SECONDS}"
+     fi
+  done
+
+# --- End of retry mechanism ---
+  if ! $successful_request; then
+    echo "Max retries (${MAX_RETRIES}) reached for ${POKEMON_NAME}. Skipping to the next pokemon."
   else
-      echo "$(date): Curl request failed for ${POKEMON_NAME}." | tee -a "${GLOBAL_ERROR_LOG}"
-      echo "Check ${GLOBAL_ERROR_LOG} for details on this curl failure."
-
-      cat "${TEMP_ERROR_FILES}" >> "${GLOBAL_ERROR_LOG}"
-      rm -f "${TEMP_ERROR_FILE}"
+     echo "Waiting ${GLOBAL_DELAY_SECONDS} seconds before processing the next Pokémon..."
+     sleep "${GLOBAL_DELAY_SECONDS}"
   fi
-
-  echo "Waiting ${DELAY_SECONDS} seconds before next request..."
-  sleep "${DELAY_SECONDS}"
   echo "----------------------------------------"
 done
 
