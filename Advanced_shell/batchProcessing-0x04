@@ -97,10 +97,24 @@ for POKEMON_NAME in "${POKEMONS[@]}"; do
     PIDS+=($!)
 done
 
-echo "----------------------------------------"
-echo "All Pokémon fetch processes launched. Waiting for them to complete..."
+# Display jobs in the background
 
-wait 
+echo "----------------------------------------"
+echo "All Pokémon fetch processes launched. Background jobs:"
+jobs
+
+cleanup() {
+    echo "Script interrupted. Cleaning up..."
+    echo "Killing all background jobs..."
+    Kill $(jobs -p) 2>/dev/null
+    wait
+    echo "Cleanup complete"
+} 
+
+trap cleanup SIGINT
+
+echo "Waiting for all background processes to complete..."
+wait
 
 echo "----------------------------------------"
 echo "All Pokémon fetch processes have completed."
